@@ -408,64 +408,98 @@
             function startDrag(e) {
                 if (paperBallInHand && !ballInFlight) {
                     dragging = true;
-                    dragStartX = e.clientX;
-                    dragStartY = e.clientY;
-                    dragEndX = e.clientX;
-                    dragEndY = e.clientY;
+                    
+                    // Get client coordinates, accounting for touch vs mouse events
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
+                    
+                    // Store starting point
+                    dragStartX = clientX;
+                    dragStartY = clientY;
+                    dragEndX = clientX;
+                    dragEndY = clientY;
                     
                     // Hide paper ball element while dragging
                     paperBall.style.display = 'none';
+                    
+                    console.log(`Drag started at ${dragStartX},${dragStartY}`);
                 }
             }
             
             function drag(e) {
                 if (dragging) {
-                    dragEndX = e.clientX;
-                    dragEndY = e.clientY;
+                    // Get client coordinates, accounting for touch vs mouse events
+                    const clientX = e.clientX || (e.touches && e.touches[0].clientX) || 0;
+                    const clientY = e.clientY || (e.touches && e.touches[0].clientY) || 0;
                     
+                    dragEndX = clientX;
+                    dragEndY = clientY;
+                    
+                    // Draw trajectory
                     drawTrajectory();
                 }
             }
             
-            function endDrag() {
+            function endDrag(e) {
                 if (dragging) {
                     dragging = false;
                     
-                    // Calculate throw power and angle
-                    const dx = dragStartX - dragEndX;
-                    const dy = dragStartY - dragEndY;
-                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    // Calculate throw power based on drag distance
+                    const dragDistanceX = dragStartX - dragEndX;
+                    const dragDistanceY = dragStartY - dragEndY;
                     
-                    if (distance > 10) {
-                        // Throw the ball
-                        throwBall(dx, dy, distance);
+                    // Scale the power for mobile vs desktop
+                    const isMobile = window.innerWidth <= 480;
+                    const powerMultiplier = isMobile ? 1.5 : 1.0; // Increase power on mobile
+                    
+                    // Only throw if the drag was significant (to avoid accidental throws)
+                    const minDragDistance = isMobile ? 10 : 20;
+                    const dragDistance = Math.sqrt(dragDistanceX * dragDistanceX + dragDistanceY * dragDistanceY);
+                    
+                    console.log(`Drag ended. Distance: ${dragDistance.toFixed(2)}, min needed: ${minDragDistance}`);
+                    
+                    if (dragDistance > minDragDistance) {
+                        throwBall(dragDistanceX, dragDistanceY);
                     } else {
-                        // Not enough power, show paper ball again
+                        // Reset if the drag was too small
                         paperBall.style.display = 'block';
+                        updatePaperBallPosition();
                     }
                     
                     // Clear trajectory
-                    trajectoryElem.innerHTML = '';
+                    const trajectoryCtx = trajectoryElem.getContext('2d');
+                    trajectoryCtx.clearRect(0, 0, trajectoryElem.width, trajectoryElem.height);
                 }
             }
             
             // Throw the ball
-            function throwBall(dx, dy, distance) {
-                // Calculate throw power based on distance
-                const maxThrowPower = 22;  // Maximum throw strength
-                const throwPower = Math.min(maxThrowPower, distance * 0.1);
-                
-                // Set ball velocity with a good feel
-                ballVelocityX = -dx * 0.08;  // Horizontal speed
-                ballVelocityY = -dy * 0.08;  // Vertical speed
-                ballVelocityZ = -throwPower; // Depth/power
-                
-                // Start ball flight
-                paperBallInHand = false;
-                ballInFlight = true;
-
-                // Play throw sound
-                playSound('whoosh');
+            function throwBall(dragDistanceX, dragDistanceY) {
+                if (!ballInFlight && paperBallInHand) {
+                    // Set ball in flight
+                    ballInFlight = true;
+                    paperBallInHand = false;
+                    
+                    // Log throw data for debugging
+                    console.log(`Throwing ball with velocity: ${dragDistanceX.toFixed(2)}, ${dragDistanceY.toFixed(2)}`);
+                    
+                    // Calculate power based on drag distance
+                    const power = Math.min(Math.sqrt(dragDistanceX * dragDistanceX + dragDistanceY * dragDistanceY) / 10, 15);
+                    
+                    // Set initial velocities based on drag vector and power
+                    const isMobile = window.innerWidth <= 480;
+                    const maxVelocity = isMobile ? 20 : 15; // Slightly higher max velocity on mobile
+                    
+                    // Calculate velocities with maximum caps
+                    ballVelocityX = -Math.min(Math.max(dragDistanceX / 8, -maxVelocity), maxVelocity);
+                    ballVelocityY = -Math.min(Math.max(dragDistanceY / 8, -maxVelocity), maxVelocity);
+                    ballVelocityZ = -power;
+                    
+                    // Add wind effect
+                    ballVelocityX += levels[currentLevel].wind;
+                    
+                    // Remove paper ball from DOM during flight
+                    paperBall.style.display = 'none';
+                }
             }
             
             // Update ball position during flight
@@ -831,23 +865,40 @@
             function adjustForScreenSize() {
                 const width = window.innerWidth;
                 const height = window.innerHeight;
+                const isPortrait = height > width;
+                
+                console.log(`Screen: ${width}x${height}, orientation: ${isPortrait ? 'portrait' : 'landscape'}`);
                 
                 // Adjust canvas size
                 canvas.width = Math.min(1000, width);
                 canvas.height = Math.min(700, height);
                 
-                // Adjust basket position on small screens
+                // Center coordinates for calculations
+                const centerX = canvas.width / 2;
+                
+                // Set ball position relative to canvas size
+                ballX = centerX;
+                
+                // Adjust basket position based on orientation and screen size
                 if (width <= 480) {
-                    basketY = Math.min(basketY, canvas.height * 0.35); // Keep basket in top 35% of screen on mobile
+                    // Mobile adjustments
+                    if (isPortrait) {
+                        // Portrait mode - position basket higher
+                        basketY = Math.min(basketY, canvas.height * 0.30);
+                    } else {
+                        // Landscape mode
+                        basketY = Math.min(basketY, canvas.height * 0.35);
+                    }
+                    // Set ball position at bottom
+                    ballY = canvas.height - 80;
                 } else {
-                    basketY = 150; // Default position
+                    // Desktop default
+                    basketY = 150;
+                    ballY = canvas.height - 100;
                 }
                 
-                // Adjust ball starting position
-                ballY = canvas.height - 100;
-                
-                // Log screen adjustments
-                console.log(`Screen adjusted to ${width}x${height}, canvas: ${canvas.width}x${canvas.height}`);
+                // Log adjustments
+                console.log(`Canvas: ${canvas.width}x${canvas.height}, Ball: ${ballX},${ballY}, Basket: ${basketX},${basketY}`);
             }
             
             // Update level display - legacy function name kept for compatibility
@@ -917,27 +968,114 @@
                 return messages[Math.floor(Math.random() * messages.length)];
             }
             
-            // Game loop
-            function gameLoop() {
-                gameTime++;
+            // Draw the trajectory
+            function drawTrajectory() {
+                // Set up the trajectory canvas
+                trajectoryElem.width = canvas.width;
+                trajectoryElem.height = canvas.height;
+                const ctx = trajectoryElem.getContext('2d');
+                ctx.clearRect(0, 0, trajectoryElem.width, trajectoryElem.height);
                 
-                // Always update basket position
-                updateBasketPosition();
+                // Don't show trajectory on very small drags
+                const dx = dragStartX - dragEndX;
+                const dy = dragStartY - dragEndY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                if (distance < 10) return;
                 
-                // Update ball only if in flight
-                if (ballInFlight) {
-                    updateBall(); 
-                } else {
-                     // Ensure canvas is cleared and redrawn even if ball isn't moving
-                     // to keep basket animation smooth
-                     const level = levels[currentLevel];
-                     drawBackgroundAndBasket(level); 
+                // Draw the trajectory line
+                ctx.beginPath();
+                ctx.moveTo(ballX, canvas.height - ballY);
+                
+                // Calculate end position based on drag vector
+                const powerMultiplier = window.innerWidth <= 480 ? 3 : 2;
+                const endX = ballX - (dx / powerMultiplier);
+                const endY = (canvas.height - ballY) - (dy / powerMultiplier);
+                
+                // Draw dotted line
+                ctx.setLineDash([5, 5]);
+                ctx.strokeStyle = levels[currentLevel].ballStrokeColor;
+                ctx.lineWidth = 3;
+                ctx.lineTo(endX, endY);
+                ctx.stroke();
+                
+                // Draw power indicator
+                const power = Math.min(distance / 10, 15);
+                const powerText = `Power: ${Math.floor(power * 10)}`;
+                
+                // Position text near the end of the trajectory
+                ctx.font = '16px Comic Sans MS';
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.fillText(powerText, endX, endY - 10);
+            }
+            
+            // Draw the basket
+            function drawBasket() {
+                const isMobile = window.innerWidth <= 480;
+                const isPortrait = window.innerHeight > window.innerWidth;
+                
+                // Draw basket
+                ctx.beginPath();
+                ctx.strokeStyle = levels[currentLevel].basketColor;
+                ctx.lineWidth = isMobile ? 8 : 6;
+                
+                // Make basket more visible on mobile with enhanced size and opacity
+                if (isMobile) {
+                    ctx.lineWidth = 10; // Thicker line on mobile
+                    ctx.shadowColor = 'white';
+                    ctx.shadowBlur = 15;
                 }
                 
-                // Request next frame
-                requestAnimationFrame(gameLoop);
+                // Draw the basket with a different style for portrait mode
+                if (isMobile && isPortrait) {
+                    // Bigger, more visible basket for portrait mode
+                    const basketSize = 70;
+                    
+                    // Draw basket rim (circle for better visibility)
+                    ctx.beginPath();
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 4;
+                    ctx.arc(basketX, basketY, basketSize/2, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // Draw colored inner rim
+                    ctx.beginPath();
+                    ctx.strokeStyle = levels[currentLevel].basketColor;
+                    ctx.lineWidth = 10;
+                    ctx.arc(basketX, basketY, basketSize/2 - 7, 0, Math.PI * 2);
+                    ctx.stroke();
+                    
+                    // Add shine effect
+                    ctx.beginPath();
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+                    ctx.arc(basketX, basketY, 15, 0, Math.PI * 2);
+                    ctx.fill();
+                } else {
+                    // Standard basket for landscape and desktop
+                    // Draw the basket sides
+                    ctx.moveTo(basketX - 50, basketY);
+                    ctx.lineTo(basketX - 30, basketY + 40);
+                    ctx.moveTo(basketX + 50, basketY);
+                    ctx.lineTo(basketX + 30, basketY + 40);
+                    
+                    // Draw the basket bottom
+                    ctx.moveTo(basketX - 30, basketY + 40);
+                    ctx.lineTo(basketX + 30, basketY + 40);
+                    
+                    // Stroke all the lines
+                    ctx.stroke();
+                    
+                    // Add highlight at the top of the basket for better visibility
+                    ctx.beginPath();
+                    ctx.arc(basketX, basketY, 10, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.fill();
+                }
+                
+                // Reset shadow
+                ctx.shadowBlur = 0;
             }
-
+            
             // Function to draw background and basket separately
             // This helps keep the basket animation smooth when the ball isn't thrown
             function drawBackgroundAndBasket(level) {
@@ -957,49 +1095,29 @@
                 // Draw decorative elements based on level
                 drawLevelDecorations(level);
                 
-                // Draw basket with 3D effect
-                const basketWidth = 120;
-                const basketHeight = 80;
-                const basketDepth = 20;
+                // Draw basket
+                drawBasket();
+            }
+            
+            // Game loop
+            function gameLoop() {
+                gameTime++;
                 
-                // Basket back
-                ctx.fillStyle = 'rgba(50, 50, 50, 0.7)';
-                ctx.fillRect(basketX - basketWidth/2, basketY - basketHeight/2, basketWidth, basketHeight);
+                // Always update basket position
+                updateBasketPosition();
                 
-                // Basket rim
-                ctx.strokeStyle = level.basketColor;
-                ctx.lineWidth = 5;
-                
-                // Make basket more visible on mobile with enhanced size and opacity
-                if (window.innerWidth <= 480) {
-                    ctx.lineWidth = 10; // Thicker line on mobile
-                    ctx.shadowColor = 'white';
-                    ctx.shadowBlur = 15;
+                // Update ball only if in flight
+                if (ballInFlight) {
+                    updateBall(); 
+                } else {
+                     // Ensure canvas is cleared and redrawn even if ball isn't moving
+                     // to keep basket animation smooth
+                     const level = levels[currentLevel];
+                     drawBackgroundAndBasket(level); 
                 }
                 
-                // Draw the basket sides
-                ctx.moveTo(basketX - 50, basketY);
-                ctx.lineTo(basketX - 30, basketY + 40);
-                ctx.moveTo(basketX + 50, basketY);
-                ctx.lineTo(basketX + 30, basketY + 40);
-                
-                // Draw the basket bottom
-                ctx.moveTo(basketX - 30, basketY + 40);
-                ctx.lineTo(basketX + 30, basketY + 40);
-                
-                // Stroke all the lines
-                ctx.stroke();
-                
-                // Add highlight at the top of the basket for better visibility on mobile
-                if (window.innerWidth <= 480) {
-                    ctx.beginPath();
-                    ctx.arc(basketX, basketY, 10, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-                    ctx.fill();
-                    
-                    // Reset shadow
-                    ctx.shadowBlur = 0;
-                }
+                // Request next frame
+                requestAnimationFrame(gameLoop);
             }
 
             // Function to play victory animation
@@ -1155,6 +1273,18 @@
             
             // Initialize the game
             init();
+        </script>
+        
+        <script>
+            // Prevent default touch behavior (scrolling/zooming) during game play
+            document.addEventListener('touchmove', function(e) {
+                if (e.target.id === 'gameCanvas' || 
+                    e.target.id === 'paperBall' || 
+                    e.target.id === 'trajectory' ||
+                    e.target.classList.contains('game-container')) {
+                    e.preventDefault();
+                }
+            }, { passive: false });
         </script>
     </body>
 </html>
