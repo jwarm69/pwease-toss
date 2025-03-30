@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pwease Toss</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Comic Sans MS', cursive;
+            background-color: #ffcce6;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .game-container {
+            position: relative;
+            width: 1000px;
+            height: 700px;
+            background-color: #ffcce6;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            overflow: hidden;
+        }
+        
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        
+        .ui-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 15px;
+            border-radius: 15px;
+            z-index: 2;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            border: 3px solid #cc66ff;
+        }
+        
+        .ui-row {
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .ui-label {
+            font-weight: bold;
+            color: #9900cc;
+            margin-right: 10px;
+        }
+        
+        .ui-value {
+            font-weight: bold;
+            color: #ff3399;
+        }
+        
+        #paperBall {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            background-image: url('assets/face-ball-circular.svg');
+            background-size: cover;
+            border-radius: 50%;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 3;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        #trajectory {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+        
+        .instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background-color: rgba(255, 255, 255, 0.8);
+            padding: 15px;
+            border-radius: 15px;
+            z-index: 2;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            border: 3px solid #cc66ff;
+            color: #9900cc;
+            max-width: 300px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div class="ui-container">
+            <div class="ui-row">
+                <span class="ui-label">Score:</span>
+                <span class="ui-value" id="scoreValue">0</span>
+            </div>
+            <div class="ui-row">
+                <span class="ui-label">Wind:</span>
+                <span class="ui-value" id="windValue">0</span>
+            </div>
+            <div class="ui-row">
+                <span class="ui-label">Level:</span>
+                <span class="ui-value" id="levelValue">1</span>
+            </div>
+        </div>
+        <div class="game-title">Pwease Toss</div>
+        <div id="paperBall"></div>
+        <div id="trajectory"></div>
+        <div class="instructions">
+            <strong>How to play:</strong><br>
+            Drag from the ball to set direction and power.<br>
+            Release to throw toward the basket.<br>
+            Wind affects your throw!<br>
+            Pwease make it in?
+        </div>
+
+        <script>
+            // DOM Elements
+            const canvas = document.getElementById('gameCanvas');
+            const ctx = canvas.getContext('2d');
+            const scoreValue = document.getElementById('scoreValue');
+            const windValue = document.getElementById('windValue');
+            const levelValue = document.getElementById('levelValue');
+            const paperBall = document.getElementById('paperBall');
+            const trajectoryElem = document.getElementById('trajectory');
+            
+            // Set canvas dimensions
+            canvas.width = 1000;
+            canvas.height = 700;
+            
+            // Load face ball image
+            const faceBallImage = new Image();
+            faceBallImage.src = 'assets/face-ball-circular.svg';
+            faceBallImage.onload = function() {
+                console.log('Face ball image loaded!');
+            };
+            
+            // Game state
+            let score = 0;
+            let currentLevel = 0;
+            let dragging = false;
+            let dragStartX = 0;
+            let dragStartY = 0;
+            let dragEndX = 0;
+            let dragEndY = 0;
+            let ballInFlight = false;
+            let ballX = 500;
+            let ballY = 600;
+            let ballZ = 0;
+            let ballVelocityX = 0;
+            let ballVelocityY = 0;
+            let ballVelocityZ = 0;
+            let paperBallInHand = true;
+            let basketX = 500;
+            let basketY = 150;
+            let basketMovementPhase = 0;
+            let gameTime = 0;
+            
+            // Level definitions
+            const levels = [
+                { 
+                    name: 'Candy Land', 
+                    wind: 0.2, 
+                    goal: 3, 
+                    backgroundColor: '#ffcce6',
+                    basketColor: '#ff66cc',
+                    floorColor: '#ffaadd',
+                    ballColor: 'white',
+                    ballStrokeColor: '#ff66cc',
+                    basketMovement: 0,  // Stationary basket for first level
+                    basketPattern: 'sine'
+                },
+                { 
+                    name: 'Witerawy Your Captain', 
+                    wind: 0.3, 
+                    goal: 4, 
+                    backgroundColor: '#87CEEB', // Sky blue
+                    basketColor: '#003366', // Airline blue
+                    floorColor: '#CCCCCC', // Airplane floor
+                    ballColor: 'white',
+                    ballStrokeColor: '#003366',
+                    basketMovement: 0,  // Stationary basket
+                    basketPattern: 'sine'
+                },
+                { 
+                    name: 'Bubble Bath', 
+                    wind: 0.4, 
+                    goal: 5, 
+                    backgroundColor: '#ccf2ff',
+                    basketColor: '#66ccff',
+                    floorColor: '#99e6ff',
+                    ballColor: 'white',
+                    ballStrokeColor: '#66ccff',
+                    basketMovement: 0,  // Stationary basket
+                    basketPattern: 'linear'
+                },
+                { 
+                    name: 'Rainbow Cloud', 
+                    wind: -0.5, 
+                    goal: 7, 
+                    backgroundColor: '#e6ccff',
+                    basketColor: '#cc99ff',
+                    floorColor: '#d8b2ff',
+                    ballColor: 'white',
+                    ballStrokeColor: '#cc99ff',
+                    basketMovement: 2.0,  // Moving basket for final level
+                    basketPattern: 'random'
+                }
+            ];
+
+            // Initialize game
+            function init() {
+                // Initial UI update
+                updateUI();
+                
+                // Event listeners
+                paperBall.addEventListener('mousedown', startDrag);
+                document.addEventListener('mousemove', drag);
+                document.addEventListener('mouseup', endDrag);
+                
+                // Touch events
+                paperBall.addEventListener('touchstart', function(e) {
+                    e.preventDefault();
+                    const touch = e.touches[0];
+                    startDrag({ clientX: touch.clientX, clientY: touch.clientY });
+                });
+                
+                document.addEventListener('touchmove', function(e) {
+                    e.preventDefault();
+                    if (dragging) {
+                        const touch = e.touches[0];
+                        drag({ clientX: touch.clientX, clientY: touch.clientY });
+                    }
+                });
+                
+                document.addEventListener('touchend', function(e) {
+                    e.preventDefault();
+                    endDrag();
+                });
+                
+                // Initial draw
+                drawBall(ballX, ballY, 1);
+                
+                // Start game loop
+                requestAnimationFrame(gameLoop);
+            }
+
+            // Position the HTML paper ball element
+            function updatePaperBallPosition() {
+                paperBall.style.left = `${ballX}px`;
+                paperBall.style.bottom = '100px';
+                paperBall.style.transform = 'translateX(-50%)';
+            }
+
+            // Start dragging the ball
+            function startDrag(e) {
+                if (paperBallInHand && !ballInFlight) {
+                    dragging = true;
+                    dragStartX = e.clientX;
+                    dragStartY = e.clientY;
+                    dragEndX = e.clientX;
+                    dragEndY = e.clientY;
+                    
+                    // Hide paper ball element while dragging
+                    paperBall.style.display = 'none';
+                }
+            }
+            
+            function drag(e) {
+                if (dragging) {
+                    dragEndX = e.clientX;
+                    dragEndY = e.clientY;
+                    
+                    drawTrajectory();
+                }
+            }
+            
+            function endDrag() {
+                if (dragging) {
+                    dragging = false;
+                    
+                    // Calculate throw power and angle
+                    const dx = dragStartX - dragEndX;
+                    const dy = dragStartY - dragEndY;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (distance > 10) {
+                        // Throw the ball
+                        throwBall(dx, dy, distance);
+                    } else {
+                        // Not enough power, show paper ball again
+                        paperBall.style.display = 'block';
+                    }
+                    
+                    // Clear trajectory
+                    trajectoryElem.innerHTML = '';
+                }
+            }
+            
+            // Throw the ball
+            function throwBall(dx, dy, distance) {
+                // Calculate throw power based on distance
+                const maxThrowPower = 22;  // Maximum throw strength
+                const throwPower = Math.min(maxThrowPower, distance * 0.1);
+                
+                // Set ball velocity with a good feel
+                ballVelocityX = -dx * 0.08;  // Horizontal speed
+                ballVelocityY = -dy * 0.08;  // Vertical speed
+                ballVelocityZ = -throwPower; // Depth/power
+                
+                // Start ball flight
+                paperBallInHand = false;
+                ballInFlight = true;
+
+                // Play throw sound
+                playSound('whoosh');
+            }
+            
+            // Update ball position during flight
+            function updateBall() {
+                if (ballInFlight) {
+                    // Apply physics
+                    ballVelocityZ += 0.35; // Gravity
+                    
+                    // Apply wind continuously
+                    const currentWind = levels[currentLevel].wind;
+                    ballVelocityX += currentWind * 0.1;
+                    
+                    // Update position
+                    ballX += ballVelocityX;
+                    ballY += ballVelocityY;
+                    ballZ += ballVelocityZ;
+                    
+                    // Calculate screen position with perspective
+                    const perspective = 1000;
+                    const scale = perspective / (perspective + ballZ);
+                    // Cap the scale for visual clarity
+                    const effectiveScale = Math.max(0.1, Math.min(5, scale)); 
+                    
+                    const screenX = 500 + (ballX - 500) * effectiveScale;
+                    const screenY = basketY + (ballY - basketY) * effectiveScale;
+                    
+                    // Check if ball is passing through basket plane (z near 0)
+                    if (ballZ > -20 && ballZ < 20) {
+                        // Check if ball's X/Y position is within basket
+                        if (Math.abs(ballX - basketX) < 60 && 
+                            Math.abs(ballY - basketY) < 40) {
+                            
+                            // Score!
+                            score++;
+                            if (currentLevel === levels.length - 1) {
+                                // Player just completed the final level (Rainbow Cloud)!
+                                console.log("Victory! Last level completed!");
+                                // Need to reset and show victory
+                                currentLevel = 0;
+                                updateLevelDisplay();
+                                resetBall();
+                                // Show victory animation with slight delay so player can see the score
+                                setTimeout(showVictoryAnimation, 800);
+                            } else {
+                                // Normal level progression
+                                currentLevel++;
+                                updateLevelDisplay();
+                                resetBall();
+                            }
+                            return; // Exit early
+                        }
+                    }
+                    
+                    // Check if ball is past basket (missed) or out of bounds
+                    if (ballZ > 50 || // Well past basket  
+                        ballY > 700 || // Off bottom
+                        ballX < 100 || ballX > 900 || // Off sides
+                        ballZ < -1000) { // Too far away
+                        
+                        // Miss!
+                        resetBall();
+                        return; // Exit early
+                    }
+                    
+                    // Draw ball at current position if still in flight
+                    drawBall(screenX, screenY, effectiveScale);
+                }
+            }
+            
+            // Reset ball position
+            function resetBall() {
+                ballX = 500;
+                ballY = 600;
+                ballZ = 0;
+                ballVelocityX = 0;
+                ballVelocityY = 0;
+                ballVelocityZ = 0;
+                ballInFlight = false;
+                paperBallInHand = true;
+                paperBall.style.display = 'block';
+            }
+            
+            // Draw the ball
+            function drawBall(x, y, scale) {
+                // First, draw the static elements (background, basket)
+                drawBackgroundAndBasket(levels[currentLevel]);
+
+                // Ball shadow
+                const ballSize = 30 * scale;
+                // Ensure shadow doesn't get too large or small
+                const shadowSize = Math.max(5, Math.min(ballSize, 50)); 
+                ctx.beginPath();
+                ctx.arc(x + 5, y + 5 + shadowSize * 0.5, shadowSize, 0, Math.PI * 2); // Shadow offset based on size
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fill();
+                
+                // Draw the face ball image
+                const imageBallSize = Math.max(20, ballSize * 2); // Ensure minimum visible size
+                
+                // Add rotation if ball is in flight
+                if (ballInFlight) {
+                    ctx.save();
+                    ctx.translate(x, y);
+                    
+                    // Calculate rotation based on velocity and time
+                    const rotation = Math.atan2(ballVelocityY, ballVelocityX);
+                    ctx.rotate(rotation);
+                    
+                    // Make the ball spin as it moves
+                    const time = gameTime / 5; // Controls spin speed
+                    const spin = (time % 360) * Math.PI / 180;
+                    ctx.rotate(spin);
+                    
+                    // Draw the ball
+                    ctx.drawImage(
+                        faceBallImage, 
+                        -imageBallSize/2, 
+                        -imageBallSize/2, 
+                        imageBallSize, 
+                        imageBallSize
+                    );
+                    
+                    ctx.restore();
+                } else {
+                    // Draw non-rotating ball when held
+                    ctx.drawImage(
+                        faceBallImage, 
+                        x - imageBallSize/2, 
+                        y - imageBallSize/2, 
+                        imageBallSize, 
+                        imageBallSize
+                    );
+                }
+            }
+            
+            // Draw level-specific decorations
+            function drawLevelDecorations(level) {
+                switch(level.name) {
+                    case 'Candy Land':
+                        // Draw windows
+                        for (let i = 0; i < 3; i++) {
+                            // Lollipops
+                            const x = 200 + i * 250;
+                            const y = 300;
+                            const radius = 40;
+                            
+                            // Draw lollipop stick
+                            ctx.fillStyle = '#ffffff';
+                            ctx.fillRect(x - 5, y, 10, 150);
+                            
+                            // Draw lollipop spiral
+                            const colors = ['#ff66cc', '#ff99cc', '#ffccee', '#ffffff'];
+                            for (let j = 0; j < 4; j++) {
+                                ctx.beginPath();
+                                ctx.arc(x, y, radius - j * 10, 0, Math.PI * 2);
+                                ctx.fillStyle = colors[j];
+                                ctx.fill();
+                            }
+                        }
+                        
+                        // Draw candy cane arch
+                        ctx.strokeStyle = '#ffffff';
+                        ctx.lineWidth = 20;
+                        ctx.beginPath();
+                        ctx.arc(500, 500, 300, Math.PI, Math.PI * 2);
+                        ctx.stroke();
+                        
+                        ctx.strokeStyle = '#ff66cc';
+                        ctx.lineWidth = 5;
+                        for (let i = 0; i < 15; i++) {
+                            ctx.beginPath();
+                            ctx.arc(500, 500, 300, Math.PI + i * 0.07, Math.PI + i * 0.07 + 0.04);
+                            ctx.stroke();
+                        }
+                        break;
+                        
+                    case 'Witerawy Your Captain':
+                        // Draw airplane windows
+                        for (let i = 0; i < 5; i++) {
+                            const x = 200 + i * 150;
+                            const y = 300;
+                            const radius = 20;
+                            
+                            ctx.fillStyle = '#ffffff';
+                            ctx.beginPath();
+                            ctx.arc(x, y, radius, 0, Math.PI * 2);
+                            ctx.fill();
+                            
+                            // Draw clouds outside windows
+                            ctx.fillStyle = 'white';
+                            for (let j = 0; j < 3; j++) {
+                                const cloudX = x + Math.sin(gameTime / 50 + i + j) * 10;
+                                const cloudY = y - 10 + Math.cos(gameTime / 30 + i + j) * 5;
+                                const cloudSize = 10 + j * 5;
+                                ctx.beginPath();
+                                ctx.arc(cloudX, cloudY, cloudSize, 0, Math.PI * 2);
+                                ctx.fill();
+                            }
+                        }
+                        
+                        // Draw airplane body
+                        ctx.fillStyle = '#CCCCCC';
+                        ctx.fillRect(150, 250, 700, 100);
+                        
+                        // Draw airplane wings
+                        ctx.fillStyle = '#AAAAAA';
+                        ctx.fillRect(100, 350, 800, 20);
+                        ctx.fillRect(100, 250, 20, 100);
+                        ctx.fillRect(880, 250, 20, 100);
+                        
+                        // Draw airplane seats
+                        ctx.fillStyle = '#003366';
+                        for (let i = 0; i < 6; i++) {
+                            // Left row seats
+                            ctx.fillRect(180 + i * 120, 270, 80, 30);
+                            
+                            // Right row seats
+                            ctx.fillRect(180 + i * 120, 320, 80, 30);
+                        }
+                        
+                        // Draw "Fasten Seatbelts" sign
+                        ctx.fillStyle = '#FFCC00';
+                        ctx.fillRect(400, 230, 200, 15);
+                        ctx.fillStyle = 'black';
+                        ctx.font = '12px Comic Sans MS';
+                        ctx.textAlign = 'center';
+                        ctx.fillText('FASTEN SEATBELTS', 500, 242);
+                        
+                        // Draw little captain's announcement text
+                        if (Math.floor(gameTime / 60) % 2 === 0) {
+                            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                            ctx.fillRect(50, 50, 300, 60);
+                            ctx.fillStyle = 'white';
+                            ctx.font = '12px Comic Sans MS';
+                            ctx.textAlign = 'left';
+                            ctx.fillText('*Ding* Witerawy your captain speaking...', 70, 70);
+                            ctx.fillText('We\'ve weached ouw cwuising awtitude', 70, 90);
+                        }
+                        break;
+                        
+                    case 'Bubble Bath':
+                        // Draw bubbles
+                        for (let i = 0; i < 20; i++) {
+                            const x = Math.random() * canvas.width;
+                            const y = Math.random() * canvas.height * 0.7;
+                            const radius = 10 + Math.random() * 30;
+                            
+                            const bubbleGradient = ctx.createRadialGradient(
+                                x - radius/3, y - radius/3, 0,
+                                x, y, radius
+                            );
+                            bubbleGradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+                            bubbleGradient.addColorStop(0.7, 'rgba(255, 255, 255, 0.4)');
+                            bubbleGradient.addColorStop(1, 'rgba(255, 255, 255, 0.1)');
+                            
+                            ctx.beginPath();
+                            ctx.arc(x, y, radius, 0, Math.PI * 2);
+                            ctx.fillStyle = bubbleGradient;
+                            ctx.fill();
+                            
+                            // Add bubble highlight
+                            ctx.beginPath();
+                            ctx.arc(x - radius/3, y - radius/3, radius/5, 0, Math.PI * 2);
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                            ctx.fill();
+                        }
+                        
+                        // Draw bathtub rim
+                        ctx.fillStyle = '#ffffff';
+                        ctx.fillRect(0, 630, canvas.width, 10);
+                        ctx.fillStyle = '#66ccff';
+                        ctx.fillRect(0, 640, canvas.width, 10);
+                        break;
+                        
+                    case 'Rainbow Cloud':
+                        // Draw rainbow
+                        const rainbowColors = [
+                            '#ff66cc', // Pink
+                            '#ff9966', // Orange
+                            '#ffff66', // Yellow
+                            '#99ff66', // Green
+                            '#66ccff', // Blue
+                            '#cc99ff'  // Purple
+                        ];
+                        
+                        const centerX = canvas.width / 2;
+                        const rainbowY = canvas.height - 300;
+                        
+                        for (let i = 0; i < rainbowColors.length; i++) {
+                            ctx.beginPath();
+                            ctx.arc(centerX, rainbowY, 300 - i * 30, 0, Math.PI);
+                            ctx.strokeStyle = rainbowColors[i];
+                            ctx.lineWidth = 25;
+                            ctx.stroke();
+                        }
+                        
+                        // Draw clouds
+                        function drawCloud(x, y, size) {
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                            ctx.beginPath();
+                            ctx.arc(x, y, size, 0, Math.PI * 2);
+                            ctx.arc(x + size, y - size/2, size * 0.8, 0, Math.PI * 2);
+                            ctx.arc(x + size * 1.5, y, size, 0, Math.PI * 2);
+                            ctx.arc(x + size/2, y + size/2, size * 0.8, 0, Math.PI * 2);
+                            ctx.closePath();
+                            ctx.fill();
+                        }
+                        
+                        drawCloud(200, 200, 50);
+                        drawCloud(600, 150, 60);
+                        drawCloud(800, 250, 40);
+                        drawCloud(300, 300, 45);
+                        
+                        // Add sparkles
+                        for (let i = 0; i < 20; i++) {
+                            const x = Math.random() * canvas.width;
+                            const y = Math.random() * canvas.height * 0.7;
+                            const size = 2 + Math.random() * 5;
+                            
+                            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                            ctx.beginPath();
+                            for (let j = 0; j < 5; j++) {
+                                const angle = j * Math.PI * 2 / 5 - Math.PI / 2;
+                                const length = size * (j % 2 === 0 ? 1 : 0.5);
+                                ctx.lineTo(
+                                    x + Math.cos(angle) * length,
+                                    y + Math.sin(angle) * length
+                                );
+                            }
+                            ctx.closePath();
+                            ctx.fill();
+                        }
+                        break;
+                }
+            }
+            
+            // Update UI elements
+            function updateUI() {
+                scoreValue.textContent = score;
+                windValue.textContent = levels[currentLevel].wind > 0 ? 
+                    `Wind: →${Math.abs(levels[currentLevel].wind)}` : 
+                    `Wind: ←${Math.abs(levels[currentLevel].wind)}`;
+                levelValue.textContent = levels[currentLevel].name;
+                
+                // Update basket color
+                // basketElem.style.borderColor = levels[currentLevel].basketColor;
+                
+                // Add shine effect to the basket
+                // basketElem.style.boxShadow = `0 0 20px ${levels[currentLevel].basketColor}`;
+                
+                // Update background color
+                document.querySelector('.game-container').style.backgroundColor = levels[currentLevel].backgroundColor;
+            }
+            
+            // Function to update basket position based on level
+            function updateBasketPosition() {
+                const level = levels[currentLevel];
+                const movementAmount = level.basketMovement;
+                
+                // Different movement patterns
+                switch(level.basketPattern) {
+                    case 'sine':
+                        // Smooth sine wave movement
+                        basketX = 500 + Math.sin(gameTime / 60) * (canvas.width * 0.25) * movementAmount;
+                        break;
+                        
+                    case 'linear':
+                        // Back and forth
+                        basketMovementPhase += 0.01 * movementAmount;
+                        if (basketMovementPhase > 2) basketMovementPhase = 0;
+                        
+                        if (basketMovementPhase < 1) {
+                            // Moving right
+                            basketX = 300 + (basketMovementPhase * 400);
+                        } else {
+                            // Moving left
+                            basketX = 700 - ((basketMovementPhase - 1) * 400);
+                        }
+                        break;
+                        
+                    case 'random':
+                        // Random jumps occasionally
+                        if (gameTime % 120 === 0) {
+                            basketX = 300 + Math.random() * 400;
+                        }
+                        break;
+                }
+            }
+            
+            // Game loop
+            function gameLoop() {
+                gameTime++;
+                
+                // Always update basket position
+                updateBasketPosition();
+                
+                // Update ball only if in flight
+                if (ballInFlight) {
+                    updateBall(); 
+                } else {
+                     // Ensure canvas is cleared and redrawn even if ball isn't moving
+                     // to keep basket animation smooth
+                     const level = levels[currentLevel];
+                     drawBackgroundAndBasket(level); 
+                }
+                
+                // Request next frame
+                requestAnimationFrame(gameLoop);
+            }
+
+            // Function to draw background and basket separately
+            // This helps keep the basket animation smooth when the ball isn't thrown
+            function drawBackgroundAndBasket(level) {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Create gradient background
+                const bgGradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                bgGradient.addColorStop(0, level.backgroundColor);
+                bgGradient.addColorStop(1, '#000000'); // Darker bottom for depth
+                ctx.fillStyle = bgGradient;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw floor
+                ctx.fillStyle = level.floorColor;
+                ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+                
+                // Draw decorative elements based on level
+                drawLevelDecorations(level);
+                
+                // Draw basket with 3D effect
+                const basketWidth = 120;
+                const basketHeight = 80;
+                const basketDepth = 20;
+                
+                // Basket back
+                ctx.fillStyle = 'rgba(50, 50, 50, 0.7)';
+                ctx.fillRect(basketX - basketWidth/2, basketY - basketHeight/2, basketWidth, basketHeight);
+                
+                // Basket rim
+                ctx.strokeStyle = level.basketColor;
+                ctx.lineWidth = 5;
+                ctx.strokeRect(basketX - basketWidth/2, basketY - basketHeight/2, basketWidth, basketHeight);
+                
+                // Basket text
+                ctx.fillStyle = 'white';
+                ctx.font = 'bold 16px Comic Sans MS';
+                ctx.textAlign = 'center';
+                ctx.fillText('BASKET', basketX, basketY + 5);
+                
+                // Basket shadow
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+                ctx.fillRect(basketX - basketWidth/2 + 5, basketY - basketHeight/2 + 5, basketWidth, basketHeight);
+            }
+
+            // Function to play victory animation
+            function showVictoryAnimation() {
+                console.log("Showing victory animation!");
+                // Create full-screen overlay for victory animation
+                const overlay = document.createElement('div');
+                overlay.style.position = 'fixed';
+                overlay.style.top = '0';
+                overlay.style.left = '0';
+                overlay.style.width = '100%';
+                overlay.style.height = '100%';
+                overlay.style.backgroundColor = 'rgba(255, 192, 203, 0.85)';
+                overlay.style.display = 'flex';
+                overlay.style.flexDirection = 'column';
+                overlay.style.alignItems = 'center';
+                overlay.style.justifyContent = 'center';
+                overlay.style.zIndex = '1000';
+                overlay.style.fontFamily = 'Comic Sans MS';
+                
+                // Victory text
+                const victoryText = document.createElement('div');
+                victoryText.textContent = 'you witerawy won the game, congwaudations!!';
+                victoryText.style.fontSize = '36px';
+                victoryText.style.color = '#ff66cc';
+                victoryText.style.textAlign = 'center';
+                victoryText.style.marginBottom = '20px';
+                victoryText.style.textShadow = '2px 2px 4px rgba(0,0,0,0.3)';
+                
+                // Trophy text
+                const trophyText = document.createElement('div');
+                trophyText.textContent = 'heres your twophy';
+                trophyText.style.fontSize = '24px';
+                trophyText.style.color = '#9900cc';
+                trophyText.style.marginBottom = '40px';
+                
+                // Trophy container (will hold the face SVG)
+                const trophyContainer = document.createElement('div');
+                trophyContainer.style.position = 'relative';
+                trophyContainer.style.width = '200px';
+                trophyContainer.style.height = '300px';
+                
+                // Trophy base
+                const trophyBase = document.createElement('div');
+                trophyBase.style.position = 'absolute';
+                trophyBase.style.bottom = '0';
+                trophyBase.style.left = '50px';
+                trophyBase.style.width = '100px';
+                trophyBase.style.height = '40px';
+                trophyBase.style.backgroundColor = '#ffcc66';
+                trophyBase.style.borderRadius = '10px';
+                
+                // Trophy stem
+                const trophyStem = document.createElement('div');
+                trophyStem.style.position = 'absolute';
+                trophyStem.style.bottom = '40px';
+                trophyStem.style.left = '85px';
+                trophyStem.style.width = '30px';
+                trophyStem.style.height = '60px';
+                trophyStem.style.backgroundColor = '#ffcc66';
+                
+                // Trophy cup (uses the face ball image)
+                const trophyCup = document.createElement('div');
+                trophyCup.style.position = 'absolute';
+                trophyCup.style.bottom = '100px';
+                trophyCup.style.left = '25px';
+                trophyCup.style.width = '150px';
+                trophyCup.style.height = '150px';
+                
+                // Create a new image element instead of relying on background
+                const trophyFace = document.createElement('img');
+                trophyFace.src = faceBallImage.src;
+                trophyFace.style.width = '100%';
+                trophyFace.style.height = '100%';
+                trophyFace.style.objectFit = 'contain';
+                trophyFace.style.animation = 'pulse 1.5s infinite';
+                trophyCup.appendChild(trophyFace);
+                
+                // Add CSS animation for the pulsing effect
+                const style = document.createElement('style');
+                style.textContent = `
+                    @keyframes pulse {
+                        0% { transform: scale(1); }
+                        50% { transform: scale(1.1); }
+                        100% { transform: scale(1); }
+                    }
+                    @keyframes float {
+                        0% { transform: translateY(0px); }
+                        50% { transform: translateY(-10px); }
+                        100% { transform: translateY(0px); }
+                    }
+                    @keyframes confetti {
+                        0% { transform: translateY(0) rotate(0deg); opacity: 1; }
+                        100% { transform: translateY(1000px) rotate(720deg); opacity: 0; }
+                    }
+                `;
+                document.head.appendChild(style);
+                
+                // Apply floating animation to the trophy
+                trophyContainer.style.animation = 'float 3s ease-in-out infinite';
+                
+                // Add confetti animation
+                for (let i = 0; i < 50; i++) {
+                    const confetti = document.createElement('div');
+                    confetti.style.position = 'absolute';
+                    confetti.style.width = Math.random() * 10 + 5 + 'px';
+                    confetti.style.height = Math.random() * 10 + 5 + 'px';
+                    confetti.style.backgroundColor = ['#ff66cc', '#66ccff', '#cc99ff', '#ffcc66'][Math.floor(Math.random() * 4)];
+                    confetti.style.top = '-5%';
+                    confetti.style.left = Math.random() * 100 + '%';
+                    confetti.style.opacity = Math.random() * 0.7 + 0.3;
+                    confetti.style.animation = `confetti ${Math.random() * 3 + 2}s linear ${Math.random() * 2}s`;
+                    overlay.appendChild(confetti);
+                }
+                
+                // Play again button
+                const playAgainButton = document.createElement('button');
+                playAgainButton.textContent = 'Play Again?';
+                playAgainButton.style.marginTop = '30px';
+                playAgainButton.style.padding = '10px 20px';
+                playAgainButton.style.fontSize = '18px';
+                playAgainButton.style.fontFamily = 'Comic Sans MS';
+                playAgainButton.style.backgroundColor = '#ff66cc';
+                playAgainButton.style.color = 'white';
+                playAgainButton.style.border = 'none';
+                playAgainButton.style.borderRadius = '25px';
+                playAgainButton.style.cursor = 'pointer';
+                playAgainButton.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                
+                // Return to first level when clicking play again
+                playAgainButton.addEventListener('click', () => {
+                    document.body.removeChild(overlay);
+                    currentLevel = 0;
+                    score = 0;
+                    updateLevelDisplay();
+                    resetBall();
+                });
+                
+                // Assemble the trophy
+                trophyContainer.appendChild(trophyBase);
+                trophyContainer.appendChild(trophyStem);
+                trophyContainer.appendChild(trophyCup);
+                
+                // Add everything to the overlay
+                overlay.appendChild(victoryText);
+                overlay.appendChild(trophyText);
+                overlay.appendChild(trophyContainer);
+                overlay.appendChild(playAgainButton);
+                
+                // Add the overlay to the document
+                document.body.appendChild(overlay);
+            }
+            
+            // Initialize the game
+            init();
+        </script>
+    </body>
+</html>

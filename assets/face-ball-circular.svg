@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="200" height="200" viewBox="0 0 200 200">
+  <defs>
+    <clipPath id="circleClip">
+      <circle cx="100" cy="100" r="98" />
+    </clipPath>
+  </defs>
+  <circle cx="100" cy="100" r="98" fill="#0037ff" stroke="#333333" stroke-width="4"/>
+  <g clip-path="url(#circleClip)">
+    <!-- Background -->
+    <rect x="0" y="0" width="200" height="200" fill="#0037ff"/>
+    
+    <!-- Face -->
+    <ellipse cx="100" cy="100" rx="80" ry="85" fill="#ffd3b6"/>
+    
+    <!-- Eyes -->
+    <ellipse cx="75" cy="80" rx="12" ry="8" fill="#ffffff"/>
+    <ellipse cx="125" cy="80" rx="12" ry="8" fill="#ffffff"/>
+    <ellipse cx="75" cy="80" rx="6" ry="6" fill="#43a1ff"/>
+    <ellipse cx="125" cy="80" rx="6" ry="6" fill="#43a1ff"/>
+    
+    <!-- Nose -->
+    <path d="M95,90 Q100,110 105,90" fill="#ffc1a0"/>
+    
+    <!-- Mouth -->
+    <path d="M80,115 Q100,125 120,115" fill="none" stroke="#d39b87" stroke-width="4"/>
+    
+    <!-- Beard -->
+    <path d="M65,110 Q100,145 135,110 Q140,130 135,150 Q100,165 65,150 Q60,130 65,110" fill="#663300"/>
+    
+    <!-- Curly Hair -->
+    <path d="M40,40 C30,60 20,70 25,85 C15,70 15,45 25,30 C40,20 60,15 80,20 C70,10 55,5 40,40" fill="#553311"/>
+    <path d="M160,40 C170,60 180,70 175,85 C185,70 185,45 175,30 C160,20 140,15 120,20 C130,10 145,5 160,40" fill="#553311"/>
+    <path d="M40,30 C60,10 140,10 160,30 C170,45 175,70 170,90 C180,70 185,40 170,20 C140,0 60,0 30,20 C15,40 15,70 30,90 C25,70 30,45 40,30" fill="#553311"/>
+    
+    <!-- Side Hair Curls -->
+    <path d="M30,85 C20,95 15,110 20,125 C10,110 10,90 20,75 C25,65 35,60 30,85" fill="#553311"/>
+    <path d="M170,85 C180,95 185,110 180,125 C190,110 190,90 180,75 C175,65 165,60 170,85" fill="#553311"/>
+    
+    <!-- More Side Curls -->
+    <path d="M25,120 C15,130 15,145 25,160 C15,145 10,125 20,110 C30,105 30,110 25,120" fill="#553311"/>
+    <path d="M175,120 C185,130 185,145 175,160 C185,145 190,125 180,110 C170,105 170,110 175,120" fill="#553311"/>
+  </g>
+</svg>
