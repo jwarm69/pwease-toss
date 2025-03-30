@@ -838,7 +838,7 @@
                 
                 // Adjust basket position on small screens
                 if (width <= 480) {
-                    basketY = Math.min(basketY, canvas.height * 0.4); // Keep basket in top 40% of screen on mobile
+                    basketY = Math.min(basketY, canvas.height * 0.35); // Keep basket in top 35% of screen on mobile
                 } else {
                     basketY = 150; // Default position
                 }
@@ -860,8 +860,8 @@
                 const level = levels[currentLevel];
                 const width = window.innerWidth;
                 
-                // Base Y position adjusted for mobile
-                let baseY = width <= 480 ? canvas.height * 0.25 : 150;
+                // Base Y position adjusted for mobile - make basket more visible
+                let baseY = width <= 480 ? canvas.height * 0.35 : 150;
                 
                 if (level.basketMovement > 0) {
                     if (level.basketPattern === 'sine') {
@@ -888,6 +888,11 @@
                 // Get the score message element
                 const scoreMessage = document.getElementById('scoreMessage');
                 if (!scoreMessage) return;
+                
+                // Only show messages on larger screens (not on mobile)
+                if (window.innerWidth <= 480) {
+                    return; // Skip showing messages on mobile
+                }
                 
                 // Set message and make visible
                 scoreMessage.textContent = message;
@@ -964,17 +969,37 @@
                 // Basket rim
                 ctx.strokeStyle = level.basketColor;
                 ctx.lineWidth = 5;
-                ctx.strokeRect(basketX - basketWidth/2, basketY - basketHeight/2, basketWidth, basketHeight);
                 
-                // Basket text
-                ctx.fillStyle = 'white';
-                ctx.font = 'bold 16px Comic Sans MS';
-                ctx.textAlign = 'center';
-                ctx.fillText('BASKET', basketX, basketY + 5);
+                // Make basket more visible on mobile with enhanced size and opacity
+                if (window.innerWidth <= 480) {
+                    ctx.lineWidth = 10; // Thicker line on mobile
+                    ctx.shadowColor = 'white';
+                    ctx.shadowBlur = 15;
+                }
                 
-                // Basket shadow
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-                ctx.fillRect(basketX - basketWidth/2 + 5, basketY - basketHeight/2 + 5, basketWidth, basketHeight);
+                // Draw the basket sides
+                ctx.moveTo(basketX - 50, basketY);
+                ctx.lineTo(basketX - 30, basketY + 40);
+                ctx.moveTo(basketX + 50, basketY);
+                ctx.lineTo(basketX + 30, basketY + 40);
+                
+                // Draw the basket bottom
+                ctx.moveTo(basketX - 30, basketY + 40);
+                ctx.lineTo(basketX + 30, basketY + 40);
+                
+                // Stroke all the lines
+                ctx.stroke();
+                
+                // Add highlight at the top of the basket for better visibility on mobile
+                if (window.innerWidth <= 480) {
+                    ctx.beginPath();
+                    ctx.arc(basketX, basketY, 10, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+                    ctx.fill();
+                    
+                    // Reset shadow
+                    ctx.shadowBlur = 0;
+                }
             }
 
             // Function to play victory animation
