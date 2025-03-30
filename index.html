@@ -107,6 +107,122 @@
             font-size: 14px;
             line-height: 1.5;
         }
+        
+        .game-title {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 32px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+            z-index: 2;
+        }
+        
+        #scoreMessage {
+            position: absolute;
+            top: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+            z-index: 4;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+        
+        /* Mobile Responsive Design */
+        @media (max-width: 1024px) {
+            .game-container {
+                width: 100vw;
+                height: 100vh;
+                border-radius: 0;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                align-items: flex-start;
+            }
+            
+            .game-title {
+                font-size: 24px;
+                top: 10px;
+                left: 10px;
+            }
+            
+            .ui-container {
+                top: 10px;
+                right: 10px;
+                padding: 8px;
+                font-size: 14px;
+            }
+            
+            .instructions {
+                font-size: 12px;
+                padding: 10px;
+                max-width: 200px;
+                bottom: 10px;
+                left: 10px;
+            }
+            
+            #paperBall {
+                width: 60px;
+                height: 60px;
+                bottom: 80px;
+            }
+        }
+        
+        /* Small phones */
+        @media (max-width: 480px) {
+            .game-title {
+                font-size: 20px;
+                width: 100%;
+                text-align: center;
+                left: 0;
+                top: 5px;
+            }
+            
+            .ui-container {
+                top: 40px;
+                right: 5px;
+                padding: 5px;
+                font-size: 12px;
+                max-width: 120px;
+            }
+            
+            .ui-row {
+                margin-bottom: 5px;
+            }
+            
+            .instructions {
+                font-size: 10px;
+                padding: 8px;
+                max-width: 150px;
+                bottom: auto;
+                top: 40px;
+                left: 5px;
+                line-height: 1.3;
+            }
+            
+            #paperBall {
+                width: 50px;
+                height: 50px;
+                bottom: 60px;
+            }
+            
+            #scoreMessage {
+                font-size: 18px;
+                top: 35%;
+            }
+            
+            /* Move basket up on small screens to make room for ball */
+            .basket-adjust {
+                transform: translateY(-40px);
+            }
+        }
     </style>
 </head>
 <body>
@@ -233,8 +349,18 @@
 
             // Initialize game
             function init() {
+                // Create score message element
+                const scoreMessage = document.createElement('div');
+                scoreMessage.id = 'scoreMessage';
+                document.querySelector('.game-container').appendChild(scoreMessage);
+                
                 // Initial UI update
                 updateUI();
+                
+                // Listen for window resize
+                window.addEventListener('resize', function() {
+                    adjustForScreenSize();
+                });
                 
                 // Event listeners
                 paperBall.addEventListener('mousedown', startDrag);
@@ -263,6 +389,9 @@
                 
                 // Initial draw
                 drawBall(ballX, ballY, 1);
+                
+                // Adjust for mobile immediately
+                adjustForScreenSize();
                 
                 // Start game loop
                 requestAnimationFrame(gameLoop);
@@ -370,6 +499,7 @@
                             Math.abs(ballY - basketY) < 40) {
                             
                             // Score!
+                            showScoreMessage(getRandomSuccessMessage());
                             score++;
                             if (currentLevel === levels.length - 1) {
                                 // Player just completed the final level (Rainbow Cloud)!
@@ -685,6 +815,9 @@
                 // Update background color
                 document.querySelector('.game-container').style.backgroundColor = levels[currentLevel].backgroundColor;
                 
+                // Mobile optimization - handle proper sizing
+                adjustForScreenSize();
+                
                 // Force a DOM repaint to ensure the UI updates
                 document.querySelector('.game-container').style.display = 'none';
                 setTimeout(() => {
@@ -692,6 +825,29 @@
                 }, 10);
                 
                 console.log("UI Updated. Current level: " + currentLevel + " - " + levels[currentLevel].name);
+            }
+            
+            // Adjust game elements based on screen size
+            function adjustForScreenSize() {
+                const width = window.innerWidth;
+                const height = window.innerHeight;
+                
+                // Adjust canvas size
+                canvas.width = Math.min(1000, width);
+                canvas.height = Math.min(700, height);
+                
+                // Adjust basket position on small screens
+                if (width <= 480) {
+                    basketY = Math.min(basketY, canvas.height * 0.4); // Keep basket in top 40% of screen on mobile
+                } else {
+                    basketY = 150; // Default position
+                }
+                
+                // Adjust ball starting position
+                ballY = canvas.height - 100;
+                
+                // Log screen adjustments
+                console.log(`Screen adjusted to ${width}x${height}, canvas: ${canvas.width}x${canvas.height}`);
             }
             
             // Update level display - legacy function name kept for compatibility
@@ -702,36 +858,58 @@
             // Function to update basket position based on level
             function updateBasketPosition() {
                 const level = levels[currentLevel];
-                const movementAmount = level.basketMovement;
+                const width = window.innerWidth;
                 
-                // Different movement patterns
-                switch(level.basketPattern) {
-                    case 'sine':
-                        // Smooth sine wave movement
-                        basketX = 500 + Math.sin(gameTime / 60) * (canvas.width * 0.25) * movementAmount;
-                        break;
-                        
-                    case 'linear':
-                        // Back and forth
-                        basketMovementPhase += 0.01 * movementAmount;
-                        if (basketMovementPhase > 2) basketMovementPhase = 0;
-                        
-                        if (basketMovementPhase < 1) {
-                            // Moving right
-                            basketX = 300 + (basketMovementPhase * 400);
-                        } else {
-                            // Moving left
-                            basketX = 700 - ((basketMovementPhase - 1) * 400);
+                // Base Y position adjusted for mobile
+                let baseY = width <= 480 ? canvas.height * 0.25 : 150;
+                
+                if (level.basketMovement > 0) {
+                    if (level.basketPattern === 'sine') {
+                        basketX = 500 + Math.sin(gameTime * 0.05) * 300 * level.basketMovement;
+                    } else if (level.basketPattern === 'linear') {
+                        basketX = 500 + ((gameTime % 100) / 50 - 1) * 400 * level.basketMovement;
+                    } else if (level.basketPattern === 'random') {
+                        if (gameTime % 60 === 0) {
+                            // Every ~1 second, pick a new random position
+                            basketX = Math.random() * 800 + 100;
                         }
-                        break;
-                        
-                    case 'random':
-                        // Random jumps occasionally
-                        if (gameTime % 120 === 0) {
-                            basketX = 300 + Math.random() * 400;
-                        }
-                        break;
+                    }
+                } else {
+                    // Default center position for stationary baskets
+                    basketX = 500;
                 }
+                
+                // Set the final Y position
+                basketY = baseY;
+            }
+            
+            // Score! - Updated scoring function with proper message display
+            function showScoreMessage(message) {
+                // Get the score message element
+                const scoreMessage = document.getElementById('scoreMessage');
+                if (!scoreMessage) return;
+                
+                // Set message and make visible
+                scoreMessage.textContent = message;
+                scoreMessage.style.opacity = '1';
+                
+                // Hide after 2 seconds
+                setTimeout(() => {
+                    scoreMessage.style.opacity = '0';
+                }, 2000);
+            }
+            
+            // Random success messages
+            function getRandomSuccessMessage() {
+                const messages = [
+                    "Pwease Good!",
+                    "Nice Shot!",
+                    "So Cute!",
+                    "Pawfect!",
+                    "UwU Score!",
+                    "Basket Friend!"
+                ];
+                return messages[Math.floor(Math.random() * messages.length)];
             }
             
             // Game loop
