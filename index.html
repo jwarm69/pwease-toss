@@ -376,14 +376,15 @@
                                 console.log("Victory! Last level completed!");
                                 // Need to reset and show victory
                                 currentLevel = 0;
-                                updateLevelDisplay();
+                                updateUI(); // Update UI with new level info
                                 resetBall();
                                 // Show victory animation with slight delay so player can see the score
                                 setTimeout(showVictoryAnimation, 800);
                             } else {
                                 // Normal level progression
                                 currentLevel++;
-                                updateLevelDisplay();
+                                console.log("Level up! Now on level: " + levels[currentLevel].name);
+                                updateUI(); // Update UI with new level info
                                 resetBall();
                             }
                             return; // Exit early
@@ -681,14 +682,21 @@
                     `Wind: ←${Math.abs(levels[currentLevel].wind)}`;
                 levelValue.textContent = levels[currentLevel].name;
                 
-                // Update basket color
-                // basketElem.style.borderColor = levels[currentLevel].basketColor;
-                
-                // Add shine effect to the basket
-                // basketElem.style.boxShadow = `0 0 20px ${levels[currentLevel].basketColor}`;
-                
                 // Update background color
                 document.querySelector('.game-container').style.backgroundColor = levels[currentLevel].backgroundColor;
+                
+                // Force a DOM repaint to ensure the UI updates
+                document.querySelector('.game-container').style.display = 'none';
+                setTimeout(() => {
+                    document.querySelector('.game-container').style.display = 'block';
+                }, 10);
+                
+                console.log("UI Updated. Current level: " + currentLevel + " - " + levels[currentLevel].name);
+            }
+            
+            // Update level display - legacy function name kept for compatibility
+            function updateLevelDisplay() {
+                updateUI();
             }
             
             // Function to update basket position based on level
@@ -923,7 +931,7 @@
                     document.body.removeChild(overlay);
                     currentLevel = 0;
                     score = 0;
-                    updateLevelDisplay();
+                    updateUI();
                     resetBall();
                 });
                 
